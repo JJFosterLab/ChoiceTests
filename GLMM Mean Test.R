@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 03 01
-#     MODIFIED:	James Foster              DATE: 2021 07 14
+#     MODIFIED:	James Foster              DATE: 2021 07 22
 #
 #  DESCRIPTION: Loads a text files, fits a mixed effects logistic model and
 #               estimates the p-value for mean ≤ reference mean.
@@ -18,6 +18,7 @@ graphics.off()
 #	   CHANGES: - two-tailed test
 #             - z-score used to calculate p-value
 #             - user-defined column names
+#             - two-tailed cumulative probability plotted as calculated
 #
 #   REFERENCES: Bates D, Maechler M, Bolker B, Walker S (2015).
 #               Fitting Linear Mixed-Effects Models Using lme4.
@@ -25,7 +26,6 @@ graphics.off()
 #               doi:10.18637/jss.v067.i01.
 #
 #    EXAMPLES:  Fill out user input (lines 50-56), then press ctrl+shift+s to run
-#
 # 
 #TODO   ---------------------------------------------
 #TODO   
@@ -36,6 +36,7 @@ graphics.off()
 #- Plot CI        +
 #- Calculate z score +
 #- Two-tailed test   +       
+#- Worked examples
 #- Back-calculate from % correct
 #- Save PDFs
 
@@ -45,7 +46,6 @@ graphics.off()
 require(lme4)#package for fitting GLMMs (generalised linear mixed-effects models)
 
 # Input Variables ----------------------------------------------------------
-
 #  .  User input -----------------------------------------------------------
 h0 = 0.5#reference choice rate
 h1 = 'two_tailed'#alternative hypothesis, mean "greater" than reference or "less", or either "two_tailed" [sic]
@@ -179,6 +179,7 @@ alpha = switch(EXPR = h1, #h1 should be a string with three possible values
                two_tailed = c(0,1)+c(1,-1)*0.05/2 #cumulative probability at either tail should be 5%
               )
 
+# . Plot derived variables ------------------------------------------------
 #Logistic regression assumes a normal distribution on the logit scale
 #The fitted model has the probability density function
 plot(x = seq(-5,5,0.01),
@@ -193,15 +194,45 @@ plot(x = seq(-5,5,0.01),
 #For which the cumulative probability of the true mean
 # being at a specific value, or lower, is
 plot(x = plogis(seq(-5,5,0.01)),
-     y = pnorm(seq(-5,5,0.01),
-         mean = mod.mu,
-         sd = mod.sigma),
+     y = switch(EXPR = h1, #h1 should be a string with three possible values
+                less = 1-pnorm( seq(-5,5,0.01),
+                              mean = mod.mu,
+                              sd = mod.sigma
+                            ),#cumulative probability below mean should be 5%
+                greater = pnorm( seq(-5,5,0.01),
+                                   mean = mod.mu,
+                                   sd = mod.sigma
+                                   ),#cumulative probability _above_ mean should be 5%
+                two_tailed = 2* sapply( seq(-5,5,0.01),
+                                              function(x)
+                                              {
+                                        ifelse(test = x<mod.mu,
+                                               yes = pnorm(q = x,
+                                                          mean = mod.mu,
+                                                          sd = mod.sigma 
+                                                           ),
+                                               no = 1-pnorm(q = x,
+                                                            mean = mod.mu,
+                                                            sd = mod.sigma 
+                                                           )
+                                              )
+                                              }
+                                        ), #cumulative probability at either tail should be 5%
+               ),
      type = 'l',
      xlab = 'mean correct choice rate',#'log(odds)',
-     ylab = 'probility of true mean ≤ value',
+     ylab = switch(EXPR = h1, #h1 should be a string with three possible values
+                   less = 'probability of true mean > value',#cumulative probability below mean should be 5%
+                   greater = 'probability of true mean < value',#cumulative probability _above_ mean should be 5%
+                   two_tailed = 'probability of true mean > or < value (maximum)' #cumulative probability at either tail should be 5%
+     ),
      main = 'fitted cumulative probability'
      )
-abline(h = alpha,
+abline(h = switch(h1,
+                  two_tailed = 2*min(alpha),
+                  less = 1-alpha,
+                  greater = alpha
+                  ),
        col = 'red',
        lty = 2#dashed line
        )
